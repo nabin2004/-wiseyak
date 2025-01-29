@@ -17,6 +17,9 @@ model = ChatGroq(model="llama3-8b-8192")
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
+    keywords: list
+    questions: list 
+    question: str 
 
 graph_builder = StateGraph(State)
 
@@ -28,13 +31,14 @@ def chatbot(state: State):
 
 def extract_keywords(state: State):
     text = state["messages"][-1]["content"]
-    prompt = f"Extract the most relevant keywords from the following text snd providde in te: {text}"
+    prompt = f"Extract the most relevant keywords from the following text: {text}"
     response = model.invoke({"prompt": prompt, "max_tokens": 50})
     keywords = response.content.split(',')  
     return {"keywords": keywords}
 
 def search_db(state: State):
-    pass 
+    # Mock implementation for now
+    return {"questions": []}
 
 def pandas_docs_search(state: State, query: str):
     url = "https://pandas.pydata.org/pandas-docs/stable/search.html?q="
@@ -52,7 +56,7 @@ def pandas_docs_search(state: State, query: str):
         result_data.append({"title": title, "url": url})
     return result_data
 
-def generate_LLM_questions(sate: State, result_data: list):
+def generate_LLM_questions(state: State, result_data: list):
     text_to_use = "\n".join([f"Title: {item['title']}\nURL: {item['url']}" for item in result_data])
     prompt = f"Generate a set of interview-style questions based on the following documentation content:\n{text_to_use}"
     response = model.invoke({"prompt": prompt, "max_tokens": 150})
@@ -60,17 +64,15 @@ def generate_LLM_questions(sate: State, result_data: list):
     return {"questions": questions}
     
 def human_feedback(state: State):
-    # print(questions)
-    answer = input("Are AI-generated questions satisfactory?")
-    if answer.lower() == "Yes":
+    answer = input("Are AI-generated questions satisfactory? (Yes/No): ")
+    if answer.lower() == "yes":
         return "Satisfactory"
     else: 
         return "Need Refactoring"
         
-
+        
 def refactor_question(state: State):
-    question = state.get("question","")
-    
+    question = state.get("question", "")
     if not question:
         return {"error": "No question provided in the state"}
 
@@ -78,21 +80,25 @@ def refactor_question(state: State):
     response = model.invoke({"prompt": prompt, "max_tokens": 100})
     enriched_question = response.content.strip()
     return {"refactored_question": enriched_question}
-    
+
 
 def save_to_db(state: State):
-    pass
-
+    # Mock implementation for now
+    print("Questions saved to database.")
+    return {"status": "success"}
 
 
 ## Conditional function
 def check_approval(state: State):
-    # I am hardcoding this funnction for now
-    return  "Satisfactory"
+    feedback = state.get("feedback", "")
+    return feedback
 
 def check_existance(state: State):
-    return "np_questions"
-
+    questions = state.get("questions", [])
+    if len(questions) >= 10:
+        return "have_10_questions_already"
+    else:
+        return "no_questions"
 
 ### NODES ENDS HERE ########
 
@@ -113,8 +119,8 @@ graph_builder.add_node("save_to_db",save_to_db)
 
 ## Edges
 graph_builder.add_edge(START, "chatbot")
-graph_builder.add_edge('chatbot','extract_keywords')
-graph_builder.add_edge('extract_keywords','search_db')
+graph_builder.add_edge('chatbot', 'extract_keywords')
+graph_builder.add_edge('extract_keywords', 'search_db')
 graph_builder.add_conditional_edges(
     "search_db",
     check_existance, 
@@ -124,8 +130,8 @@ graph_builder.add_conditional_edges(
     }
 )
 
-graph_builder.add_edge('pandas_docs_search','generate_LLM_questions')
-graph_builder.add_edge('generate_LLM_questions','human_feedback')
+graph_builder.add_edge('pandas_docs_search', 'generate_LLM_questions')
+graph_builder.add_edge('generate_LLM_questions', 'human_feedback')
 graph_builder.add_conditional_edges(
     "human_feedback",
     check_approval, 
@@ -134,8 +140,8 @@ graph_builder.add_conditional_edges(
         "Satisfactory": 'save_to_db',  
     },
 )
-graph_builder.add_edge('save_to_db',END)
-graph_builder.add_edge('refactor_question','human_feedback')
+graph_builder.add_edge('save_to_db', END)
+graph_builder.add_edge('refactor_question', 'human_feedback')
 
 
 ### GRAPH ENDS HERE
