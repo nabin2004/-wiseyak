@@ -1,11 +1,19 @@
+from bs4 import BeautifulSoup
 from langgraph.graph import StateGraph, START, END 
 from typing import Annotated
 from typing_extensions import TypedDict 
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from IPython.display import Image, display
+from langchain_groq import ChatGroq
+import os 
+import getpass
+import requests
 
-model = "MODEL HERE"
+if not os.environ.get("GROQ_API_KEY"):
+    os.environ["GROQ_API_KEY"] = getpass.getpass("Enter API key for Groq: ")
+
+model = ChatGroq(model="llama3-8b-8192")
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
@@ -15,25 +23,62 @@ graph_builder = StateGraph(State)
 
 ### NODES #############
 def chatbot(state: State):
-    pass
+    response = model.invoke(state["messages"]) 
+    return {"messages":[{"role": "assistant", "content": response.content}]}
 
 def extract_keywords(state: State):
-    pass 
+    text = state["messages"][-1]["content"]
+    prompt = f"Extract the most relevant keywords from the following text snd providde in te: {text}"
+    response = model.invoke({"prompt": prompt, "max_tokens": 50})
+    keywords = response.content.split(',')  
+    return {"keywords": keywords}
 
 def search_db(state: State):
     pass 
 
-def pandas_docs_search(state: State):
-    pass 
+def pandas_docs_search(state: State, query: str):
+    url = "https://pandas.pydata.org/pandas-docs/stable/search.html?q="
+    search_url = url + query
+    response = requests.get(search_url)
+    if response.status_code != 200:
+        return {"error": "Failed to retrieve documentation"}
+    soup = BeautifulSoup(response.text, 'html.parser')
+    results = soup.find_all('li', class_='searchresult')
+    
+    result_data = []
+    for result in results:
+        title = result.find('a').text.strip()
+        url = result.find('a')['href']
+        result_data.append({"title": title, "url": url})
+    return result_data
 
-def generate_LLM_questions(sate: State):
-    pass 
-
+def generate_LLM_questions(sate: State, result_data: list):
+    text_to_use = "\n".join([f"Title: {item['title']}\nURL: {item['url']}" for item in result_data])
+    prompt = f"Generate a set of interview-style questions based on the following documentation content:\n{text_to_use}"
+    response = model.invoke({"prompt": prompt, "max_tokens": 150})
+    questions = response.content.strip().split("\n")
+    return {"questions": questions}
+    
 def human_feedback(state: State):
-    pass
+    # print(questions)
+    answer = input("Are AI-generated questions satisfactory?")
+    if answer.lower() == "Yes":
+        return "Satisfactory"
+    else: 
+        return "Need Refactoring"
+        
 
 def refactor_question(state: State):
-    pass
+    question = state.get("question","")
+    
+    if not question:
+        return {"error": "No question provided in the state"}
+
+    prompt = f"Please improve and enrich the following question, making it clearer and more engaging: '{question}'"
+    response = model.invoke({"prompt": prompt, "max_tokens": 100})
+    enriched_question = response.content.strip()
+    return {"refactored_question": enriched_question}
+    
 
 def save_to_db(state: State):
     pass
@@ -42,15 +87,14 @@ def save_to_db(state: State):
 
 ## Conditional function
 def check_approval(state: State):
-    pass 
+    # I am hardcoding this funnction for now
+    return  "Satisfactory"
 
 def check_existance(state: State):
-    pass 
+    return "np_questions"
 
 
 ### NODES ENDS HERE ########
-
-### TOOOOOOLS
 
 
 
@@ -97,10 +141,6 @@ graph_builder.add_edge('refactor_question','human_feedback')
 ### GRAPH ENDS HERE
 
 graph = graph_builder.compile()
-
-
-
-
 
 # Generate the graph image
 png_image = graph.get_graph().draw_mermaid_png()
