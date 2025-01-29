@@ -30,11 +30,12 @@ def chatbot(state: State):
     return {"messages":[{"role": "assistant", "content": response.content}]}
 
 def extract_keywords(state: State):
-    text = state["messages"][-1]["content"]
+    text = state["messages"]
     prompt = f"Extract the most relevant keywords from the following text: {text}"
     response = model.invoke({"prompt": prompt, "max_tokens": 50})
     keywords = response.content.split(',')  
     return {"keywords": keywords}
+
 
 def search_db(state: State):
     # Mock implementation for now
@@ -155,7 +156,15 @@ def stream_tool_responses(user_input: str):
         for value in event.values():
             print("Agent:", value["messages"])
 
-graph.invoke("Generate the interview question for pandas series.")
+state = {
+    "messages": [{"role": "user", "content": "Generate the interview question for pandas series."}],
+    "keywords": [],
+    "questions": [],
+    "question": ""
+}
+
+response = graph.invoke(state)
+print(response)
 
 # Generate the graph image
 png_image = graph.get_graph().draw_mermaid_png()
