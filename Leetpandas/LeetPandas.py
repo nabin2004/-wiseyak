@@ -148,6 +148,15 @@ graph_builder.add_edge('refactor_question', 'human_feedback')
 
 graph = graph_builder.compile()
 
+
+def stream_tool_responses(user_input: str):
+    for event in graph.stream({"messages": [("user", user_input)]}):
+        # Return the agent's last response
+        for value in event.values():
+            print("Agent:", value["messages"])
+
+graph.invoke("Generate the interview question for pandas series.")
+
 # Generate the graph image
 png_image = graph.get_graph().draw_mermaid_png()
 
