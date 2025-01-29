@@ -20,6 +20,9 @@ def chatbot(state: State):
 def extract_keywords(state: State):
     pass 
 
+def search_db(state: State):
+    pass 
+
 def pandas_docs_search(state: State):
     pass 
 
@@ -29,8 +32,26 @@ def generate_LLM_questions(sate: State):
 def human_feedback(state: State):
     pass
 
+def refactor_question(state: State):
+    pass
+
+def save_to_db(state: State):
+    pass
+
+
+
+## Conditional function
+def check_approval(state: State):
+    pass 
+
+def check_existance(state: State):
+    pass 
+
 
 ### NODES ENDS HERE ########
+
+### TOOOOOOLS
+
 
 
 ### GRAPH STARTS HERE
@@ -38,20 +59,41 @@ def human_feedback(state: State):
 ## Nodes
 graph_builder.add_node("chatbot",chatbot)
 graph_builder.add_node("extract_keywords",extract_keywords)
+graph_builder.add_node('search_db',search_db)
 graph_builder.add_node("pandas_docs_search",pandas_docs_search)
 graph_builder.add_node("generate_LLM_questions",generate_LLM_questions)
 graph_builder.add_node("human_feedback",human_feedback)
-
+graph_builder.add_node("refactor_question",refactor_question)
+graph_builder.add_node("save_to_db",save_to_db)
 
 
 ## Edges
 graph_builder.add_edge(START, "chatbot")
 graph_builder.add_edge('chatbot','extract_keywords')
-graph_builder.add_edge('extract_keywords','pandas_docs_search')
+
+graph_builder.add_conditional_edges(
+    "extract_keywords",
+    check_existance, 
+    {
+        "have_10_questions_already": "human_feedback",
+        "no_questions": "pandas_docs_search",
+    }
+)
+
 graph_builder.add_edge('pandas_docs_search','generate_LLM_questions')
 graph_builder.add_edge('generate_LLM_questions','human_feedback')
-# graph_builder.add_conditional_edges('human_feedback', tools_condition) ## removed for now
-graph_builder.add_edge("human_feedback", END)
+graph_builder.add_conditional_edges(
+    "human_feedback",
+    check_approval, 
+    {
+        "Need Refactoring": "refactor_question", 
+        "Satisfactory": 'save_to_db',  
+    },
+)
+graph_builder.add_edge('save_to_db',END)
+graph_builder.add_edge('refactor_question','human_feedback')
+
+
 ### GRAPH ENDS HERE
 
 graph = graph_builder.compile()
@@ -67,7 +109,7 @@ png_image = graph.get_graph().draw_mermaid_png()
 display(Image(png_image))
 
 # Save the image to a file
-with open("graph_output.png", "wb") as file:
+with open("Leetpandas/graph_output.png", "wb") as file:
     file.write(png_image)
 
 print("Image saved as 'graph_output.png'")
