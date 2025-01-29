@@ -70,9 +70,9 @@ graph_builder.add_node("save_to_db",save_to_db)
 ## Edges
 graph_builder.add_edge(START, "chatbot")
 graph_builder.add_edge('chatbot','extract_keywords')
-
+graph_builder.add_edge('extract_keywords','search_db')
 graph_builder.add_conditional_edges(
-    "extract_keywords",
+    "search_db",
     check_existance, 
     {
         "have_10_questions_already": "human_feedback",
